@@ -16,8 +16,6 @@ jobs:
 
       steps:
         -
-          uses: busybox:latest
-        -
           uses: actions/checkout@v2
         -
           name: setup buildx
