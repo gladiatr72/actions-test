@@ -8,8 +8,6 @@ on:
 
 jobs:
 
-
-    runs-on: ubuntu-latest
     env:
       PYTHON_VERSION: "3.6.13"
 
