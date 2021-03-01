@@ -1,0 +1,175 @@
+# vim: ft=Dockerfile ts=4 sw=4 expandtab
+###############################################################################
+#
+# Multi-stage Python 3.x build
+#
+# build-time environment variables:
+#   LTO=1                   . enable link-time-optimizations
+#   OPTIMAL=1               . enable profile-guided-optimizations (PGO)
+#   PYTHON_VERSION=3.5.3
+#
+#   ** NOTE **:
+#       . LTO requires PGO
+#       . ensure both variables are unset for typical builds
+#
+# building:
+#   make build-image        . run docker build
+#   make build-push         . push image to repository
+#   make image              . build + push
+#
+# Stages:
+#    runtime <- debian-base-amd64:0.2
+#       common runtime packages go here
+#    build-setup <- runtime
+#       dev packages, tools, utilities, etc. go here
+#    builder <- build-setup
+#       ./configure <things> && make && make install
+#    post-build <- builder
+#       install any common python modules here
+#    FINAL <- runtime
+#       pip package installation goes here + ENTRYPOINT
+#
+###############################################################################
+
+#FROM gcr.io/google-containers/debian-base-amd64:v2.0.0 as runtime
+FROM alpine:3.12 as runtime
+
+ENV PATH /usr/local/bin:$PATH
+
+# http://bugs.python.org/issue19846
+# > At the moment, setting "LANG=C" on a Linux system *fundamentally breaks Python 3*, and that's not OK.
+
+ENV LANG C.UTF-8
+
+#COPY ./init-functions /lib/lsb/
+
+RUN set -ex \
+    &&  apk add --no-cache  sqlite zlib expat bash openssl procps less libbz2 netcat-openbsd  ncurses \
+    && rm -rf /root/.gnupg \
+    && mkdir -vp /root/.gnupg \
+    && chmod -v 700 /root/.gnupg
+
+LABEL stage RUNTIME
+
+###############################################################################
+FROM runtime as build-setup
+
+ADD gnupg/pubring.gpg gnupg/trustdb.gpg /root/.gnupg/
+
+RUN set -ex \
+    && mkdir -p /root/.gnupg \
+    && chmod 700 /root/.gnupg \
+    && buildDeps='sqlite-dev zlib-dev expat-dev openssl-dev xz-dev readline-dev libffi-dev ncurses-dev ncurses5-widec-libs curl gnupg tar gcc g++ make autoconf automake libtool' \
+    && apk --no-cache add ${buildDeps}
+
+ARG PYTHON_VERSION
+
+RUN \
+    set -ex; \
+    #curl -sL -o /python.tar.xz "https://www.python.org/ftp/python/${PYTHON_VERSION%%[a-z]*}/Python-$PYTHON_VERSION.tar.xz" \
+    curl -sL -o /python.tar.xz "https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tar.xz" \
+    && curl -sL -o /python.tar.xz.asc "https://www.python.org/ftp/python/${PYTHON_VERSION%%[a-z]*}/Python-$PYTHON_VERSION.tar.xz.asc" \
+    && gpg --keyserver ha.pool.sks-keyservers.net --refresh-keys 2>&1 | egrep -v 'requesting key|not changed' || sleep 6000 \
+    && gpg --batch --verify /python.tar.xz.asc /python.tar.xz \
+    && mkdir -p /usr/src/python \
+    && tar -xJC /usr/src/python --strip-components=1 -f /python.tar.xz
+
+
+LABEL stage BUILD-SETUP
+LABEL version ${PYTHON_VERSION}
+
+###############################################################################
+FROM build-setup as builder
+
+ARG BUILD_ARGS
+ARG PYTHON_VERSION
+ENV LANG C.UTF-8
+
+ENV CFLAGS -I/usr/include/openssl
+
+ENV gnuArch x86_64-linux-gnu
+
+
+RUN set -ex \
+    && cd /usr/src/python \
+    && [ $(( ` echo $PYTHON_VERSION | cut -d"." -f1 ` )) -lt 3 ] && BUILD_ARGS="" \
+    ; ./configure \
+        --build="$gnuArch" \
+        --enable-loadable-sqlite-extensions \
+        --enable-shared \
+        --with-system-expat \
+        --with-system-ffi \
+        --without-ensurepip ${BUILD_ARGS} \
+    && make -j $(( 1 * $( egrep '^processor[[:space:]]+:' /proc/cpuinfo | wc -l ) )) \
+    && make install
+
+    RUN set -ex \
+        find /usr/local -type f -name "*.so" -exec strip --strip-unneeded {} + \
+    &&  ldconfig /usr/lib /usr/local/lib \
+    &&  find /usr/local -depth \
+        \( \
+            \( -type d -a \( -name test -o -name tests -o -name __pycache__ \) \) \
+            -o \
+            \( -type f -a \( -name '*.pyc' -o -name '*.pyo' \) \) \
+            -o \
+            \( -name "idle*" \) \
+        \) -exec rm -rf '{}' +  \
+    &&  find /usr/share/man \
+             /usr/share \
+             /var/log \
+             -type f -exec rm -f {} +
+
+# make some useful symlinks that are expected to exist
+#
+RUN ["/bin/bash", "-c", "if [[ $( echo ${PYTHON_VERSION} | cut -d'.' -f1 ) == '3' ]]; then cd /usr/local/bin && ln -sf pydoc3 pydoc && ln -sf python3 python && ln -sf python3-config python-config;  fi"]
+RUN set -ex; ldconfig /usr/lib /usr/local/lib
+
+RUN set -ex; curl -sL -o get-pip.py 'https://bootstrap.pypa.io/get-pip.py'
+RUN set -ex; python get-pip.py \
+                --disable-pip-version-check \
+                --no-cache-dir; \
+                pip --version
+
+
+LABEL stage BUILDER
+LABEL version ${PYTHON_VERSION}
+
+###############################################################################
+FROM alpine:3.12 as final
+
+# if this is called "PIP_VERSION", pip explodes with "ValueError: invalid truth value '<VERSION>'"
+ENV PYTHON_PIP_VERSION 20.3.3
+
+
+COPY ./ipython_config.py /
+
+
+
+RUN mkdir -p $HOME/.ipython/profile_default ;
+RUN mv ipython_config.py $HOME/.ipython/profile_default/. ;
+
+RUN set -ex;  \
+    find /usr/local -depth \
+        \( \
+            \( -type d -a \( -name test -o -name tests -o -name __pycache__ \) \) \
+            -o \
+            \( -type f -a \( -name '*.pyc' -o -name '*.pyo' -o -name '*.exe' \) \) \
+        \) -exec rm -rf '{}' +;
+
+RUN set -ex; \
+    find /usr/share/
+RUN rm -rf /root/.cache
+
+COPY --from=builder /usr/local /usr/local
+COPY --from=builder /root/* /root/
+
+RUN apk --no-cache add sqlite zlib expat libbz2 libffi sqlite-libs
+
+RUN /sbin/ldconfig /usr/lib /usr/local/lib
+
+LABEL stage FINAL
+ARG PYTHON_VERSION
+LABEL version ${PYTHON_VERSION}
+
+RUN apk --no-cache add bash
+CMD ["python"]
