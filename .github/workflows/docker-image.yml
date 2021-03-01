@@ -31,6 +31,6 @@ jobs:
           uses: docker/build-push-action@v2
 
           with:
-            push: false
+            push: true
             tags: gladiatr72/python:${{ env.PYTHON_VERSION }}
             build-args: PYTHON_VERSION=${{ env.PYTHON_VERSION}}
