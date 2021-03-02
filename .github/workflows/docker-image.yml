@@ -35,4 +35,4 @@ jobs:
             tags: gladiatr72/python:${{ env.PYTHON_VERSION }}
             build-args: |
               PYTHON_VERSION=${{ env.PYTHON_VERSION}}
-              --build-arg BUILD_ARGS='--enable optimizations --with-lto'
+              BUILD_ARGS='--enable optimizations --with-lto'
