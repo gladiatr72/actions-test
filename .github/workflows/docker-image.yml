@@ -11,6 +11,7 @@ jobs:
     if-you-build-it:
       env:
         PYTHON_VERSION: "3.6.13"
+        BUILD_ARGS: "--enable optimizations --with-lto"
 
       runs-on: ubuntu-latest
 
@@ -35,4 +36,4 @@ jobs:
             tags: gladiatr72/python:${{ env.PYTHON_VERSION }}
             build-args: |
               PYTHON_VERSION=${{ env.PYTHON_VERSION}}
-              BUILD_ARGS='--enable optimizations --with-lto'
+              BUILD_ARGS=${{ env.BUILD_ARGS }}
