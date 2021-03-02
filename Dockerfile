@@ -114,10 +114,10 @@ RUN set -ex \
 RUN make -j $(( 1 * $( egrep '^processor[[:space:]]+:' /proc/cpuinfo | wc -l ) ))
 RUN make install
 
-    RUN set -ex \
-        find /usr/local -type f -name "*.so" -exec strip --strip-unneeded {} + \
-    &   ldconfig \
-    &   find /usr/local -depth \
+RUN set -ex \
+       find /usr/local -type f -name "*.so" -exec strip --strip-unneeded {} + \
+    && ldconfig \
+    && find /usr/local -depth \
         \( \
             \( -type d -a \( -name test -o -name tests -o -name __pycache__ \) \) \
             -o \
