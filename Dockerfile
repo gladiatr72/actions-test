@@ -156,7 +156,7 @@ RUN set -ex; python get-pip.py \
 
 
 RUN mkdir -p $HOME/.ipython/profile_default ;
-RUN mv ipython_config.py $HOME/.ipython/profile_default/. ;
+RUN mv /ipython_config.py $HOME/.ipython/profile_default/. ;
 
 RUN set -ex;  \
     find /usr/local -depth \
