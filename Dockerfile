@@ -98,6 +98,8 @@ ENV LANG C.UTF-8
 
 ENV CFLAGS -I/usr/include/openssl
 
+WORKDIR /usr/src/python
+
 RUN set -ex \
     && cd /usr/src/python \
     && gnuArch="$(dpkg-architecture --query DEB_BUILD_GNU_TYPE)" \

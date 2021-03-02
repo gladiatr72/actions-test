@@ -42,7 +42,7 @@ TAG_SUFFIX ?=
 
 build-image:
 	@echo building ${IMAGE_TAG}
-	@docker build ${PROXY_ARGS} -f ${DOCKERFILE} --build-arg=PYTHON_VERSION=${PYTHON_VERSION} --build-arg=BUILD_ARGS="${BUILD_ARGS}" -t ${IMAGE_TAG} .
+	@docker buildx build ${PROXY_ARGS} -f ${DOCKERFILE} --build-arg=PYTHON_VERSION=${PYTHON_VERSION} --build-arg=BUILD_ARGS="${BUILD_ARGS}" -t ${IMAGE_TAG} .
 
 push-image:
 	@echo pushing ${IMAGE_TAG}
