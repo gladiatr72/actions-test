@@ -108,9 +108,9 @@ RUN set -ex \
         --enable-shared \
         --with-system-expat \
         --with-system-ffi \
-        --without-ensurepip ${BUILD_ARGS} \
-    && make -j $(( 1 * $( egrep '^processor[[:space:]]+:' /proc/cpuinfo | wc -l ) )) \
-    && make install
+        --without-ensurepip ${BUILD_ARGS}
+RUN make -j $(( 1 * $( egrep '^processor[[:space:]]+:' /proc/cpuinfo | wc -l ) ))
+RUN make install
 
     RUN set -ex \
         find /usr/local -type f -name "*.so" -exec strip --strip-unneeded {} + \
