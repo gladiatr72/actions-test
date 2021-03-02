@@ -11,7 +11,7 @@ jobs:
     if-you-build-it:
       env:
         PYTHON_VERSION: "3.6.13"
-        BUILD_ARGS: "--enable optimizations --with-lto"
+        BUILD_ARGS: "--enable-optimizations --with-lto"
 
       runs-on: ubuntu-latest
 
